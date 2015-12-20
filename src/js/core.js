@@ -14,16 +14,49 @@
     }
 
     function handleDisabledEnterKeydown(event, element) {
-        if (this.options.disableReturn || element.getAttribute('data-disable-return')) {
-            event.preventDefault();
-        } else if (this.options.disableDoubleReturn || element.getAttribute('data-disable-double-return')) {
-            var node = MediumEditor.selection.getSelectionStart(this.options.ownerDocument);
+        if (!this.options.singleEnterBlockElement) {
+            var p = MediumEditor.selection.getSelectionStart(this.options.ownerDocument),
+                caretPositions = MediumEditor.selection.getCaretOffsets(p),
+                nodeHtml = p.innerHTML,
+                textLeft,
+                textRight,
+                newEl;
 
-            // if current text selection is empty OR previous sibling text is empty OR it is not a list
-            if ((node && node.textContent.trim() === '' && node.nodeName.toLowerCase() !== 'li') ||
-                (node.previousElementSibling && node.previousElementSibling.nodeName.toLowerCase() !== 'br' &&
-                 node.previousElementSibling.textContent.trim() === '')) {
+            if (p.nodeName.toLowerCase() !== 'p') {
+                return;
+            }
+
+            textLeft = nodeHtml.substring(0, caretPositions.left);
+            textRight = nodeHtml.substring(caretPositions.left, nodeHtml.length);
+
+            event.preventDefault();
+
+            //if enter is being pressed twice
+            if (textRight.substring(0, 4) === '<br>') {
+                p.innerHTML = textLeft;
+                var newPElement = document.createElement('p');
+                textRight = textRight.substring(4, textRight.length);
+                newPElement.innerHTML = textRight;newPElement.innerHTML = textRight;
+                p.parentNode.insertBefore(newPElement, p.nextSibling);
+                MediumEditor.selection.moveCursor(this.options.ownerDocument, newPElement, 1);
+            } else {
+                newEl = textLeft + '<br/>' + textRight;
+                p.innerHTML = newEl;
+                MediumEditor.selection.moveCursor(this.options.ownerDocument, p, 1);
+            }
+        } else {
+
+            if (this.options.disableReturn || element.getAttribute('data-disable-return')) {
                 event.preventDefault();
+            } else if (this.options.disableDoubleReturn || element.getAttribute('data-disable-double-return')) {
+                var node = MediumEditor.selection.getSelectionStart(this.options.ownerDocument);
+
+                // if current text selection is empty OR previous sibling text is empty OR it is not a list
+                if ((node && node.textContent.trim() === '' && node.nodeName.toLowerCase() !== 'li') ||
+                    (node.previousElementSibling && node.previousElementSibling.nodeName.toLowerCase() !== 'br' &&
+                    node.previousElementSibling.textContent.trim() === '')) {
+                    event.preventDefault();
+                }
             }
         }
     }
@@ -142,6 +175,10 @@
     }
 
     function handleKeyup(event) {
+        if (!this.options.singleEnterBlockElement) {
+            return;
+        }
+
         var node = MediumEditor.selection.getSelectionStart(this.options.ownerDocument),
             tagName;
 
@@ -381,7 +418,7 @@
         }
 
         // disabling return or double return
-        if (this.options.disableReturn || this.options.disableDoubleReturn) {
+        if (this.options.disableReturn || this.options.disableDoubleReturn || !this.options.singleEnterBlockElement) {
             this.subscribe('editableKeydownEnter', handleDisabledEnterKeydown.bind(this));
         } else {
             for (i = 0; i < this.elements.length; i += 1) {
@@ -515,8 +552,7 @@
         }
 
         if (action === 'image') {
-            var src = this.options.contentWindow.getSelection().toString().trim();
-            return this.options.ownerDocument.execCommand('insertImage', false, src);
+            return this.options.ownerDocument.execCommand('insertImage', false, this.options.contentWindow.getSelection());
         }
 
         /* Issue: https://github.com/yabwe/medium-editor/issues/595
@@ -966,7 +1002,7 @@
                         // but the selection is contained within the same block element
                         // we want to make sure we create a single link, and not multiple links
                         // which can happen with the built in browser functionality
-                        if (commonAncestorContainer.nodeType !== 3 && commonAncestorContainer.textContent.length !== 0 && startContainerParentElement === endContainerParentElement) {
+                        if (commonAncestorContainer.nodeType !== 3 && startContainerParentElement === endContainerParentElement) {
                             var parentElement = (startContainerParentElement || currentEditor),
                                 fragment = this.options.ownerDocument.createDocumentFragment();
 
