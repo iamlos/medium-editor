@@ -15,13 +15,17 @@
 
     function handleDisabledEnterKeydown(event, element) {
         if (!this.options.singleEnterBlockElement) {
+
             var p = MediumEditor.selection.getSelectionStart(this.options.ownerDocument),
                 caretPositions = MediumEditor.selection.getCaretOffsets(p),
                 nodeHtml = p.innerHTML,
                 textLeft,
                 textRight,
-                newEl;
+                newEl,
+                allChildNodes,
+                containsBR;
 
+            //if not a <p> tag
             if (p.nodeName.toLowerCase() !== 'p') {
                 return;
             }
@@ -29,14 +33,30 @@
             textLeft = nodeHtml.substring(0, caretPositions.left);
             textRight = nodeHtml.substring(caretPositions.left, nodeHtml.length);
 
+            //if cursor is at the end of line or
+            //if cursor is at the beginning of line, behaviour of enter should not change
+            if (textRight === '' || textLeft === '') {
+                return;
+            }
+
             event.preventDefault();
 
+            //loop through all children to find out if br tag exists
+            containsBR = false;
+            allChildNodes = p.childNodes;
+            for (var i = 0; i < allChildNodes.length; i++) {
+                if (allChildNodes[i].nodeName.toLowerCase() === 'br') {
+                    containsBR = true;
+                    break;
+                }
+            }
+
             //if enter is being pressed twice
-            if (textRight.substring(0, 4) === '<br>') {
+            if (containsBR === true) {
                 p.innerHTML = textLeft;
                 var newPElement = document.createElement('p');
                 textRight = textRight.substring(4, textRight.length);
-                newPElement.innerHTML = textRight;newPElement.innerHTML = textRight;
+                newPElement.innerHTML = textRight;
                 p.parentNode.insertBefore(newPElement, p.nextSibling);
                 MediumEditor.selection.moveCursor(this.options.ownerDocument, newPElement, 1);
             } else {
@@ -552,7 +572,8 @@
         }
 
         if (action === 'image') {
-            return this.options.ownerDocument.execCommand('insertImage', false, this.options.contentWindow.getSelection());
+            var src = this.options.contentWindow.getSelection().toString().trim();
+            return this.options.ownerDocument.execCommand('insertImage', false, src);
         }
 
         /* Issue: https://github.com/yabwe/medium-editor/issues/595
@@ -1002,7 +1023,7 @@
                         // but the selection is contained within the same block element
                         // we want to make sure we create a single link, and not multiple links
                         // which can happen with the built in browser functionality
-                        if (commonAncestorContainer.nodeType !== 3 && startContainerParentElement === endContainerParentElement) {
+                        if (commonAncestorContainer.nodeType !== 3 && commonAncestorContainer.textContent.length !== 0 && startContainerParentElement === endContainerParentElement) {
                             var parentElement = (startContainerParentElement || currentEditor),
                                 fragment = this.options.ownerDocument.createDocumentFragment();
 
